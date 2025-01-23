@@ -2,25 +2,218 @@
 title: "testing"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
 ```{r}
-1 + 1
-```
+library(tidyverse)
+library(janitor)
+library(dplyr)
+library(here)
+library(stringr)
+library(ggridges)
 
-You can add options to executable code like this
+library(tmap)
+library(sf)
+```
 
 ```{r}
-#| echo: false
-2 * 2
+rm(list = ls())
+
+pottery <- read_csv(here('data/beazley_athenian_pottery_archive.csv'))
+
+geometric <- read_csv(here('data/beazley_athenian_geometric.csv'))
+
+corinthian <- read_csv(here('data/beazley_corinthian.csv'))
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+pottery <- pottery %>%
+  clean_names() %>%
+  select(vase_number, 
+         fabric, 
+         technique,
+         shape_name, 
+         provenance, 
+         date, 
+         inscriptions, 
+         decoration, 
+         latitude, 
+         longitude) %>%
+  separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
+  mutate(
+    min_age = as.numeric(min_age),
+    max_age = as.numeric(max_age)
+  ) %>%
+  filter(!is.na(min_age) & !is.na(max_age))
+
+pottery <- pottery %>%
+  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "OUTLINE", "SILHOUETTE"))
+```
+
+```{r}
+geometric <- geometric %>%
+  clean_names() %>%
+  select(vase_number, 
+         fabric, 
+         technique,
+         shape_name, 
+         provenance, 
+         date, 
+         inscriptions, 
+         decoration, 
+         latitude, 
+         longitude) %>%
+  separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
+  mutate(
+    min_age = as.numeric(min_age),
+    max_age = as.numeric(max_age)
+  ) %>%
+  mutate(technique = ifelse(is.na(technique), "GEOMETRIC", technique))
+
+geometric <- geometric %>%
+  filter(technique %in% c("SILHOUETTE", "OUTLINE", "GEOMETRIC"))
+```
+
+```{r}
+corinthian <- corinthian %>%
+  clean_names() %>%
+  select(vase_number, 
+         fabric, 
+         technique,
+         shape_name, 
+         provenance, 
+         date, 
+         inscriptions, 
+         decoration, 
+         latitude, 
+         longitude) %>%
+  separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
+  mutate(
+    min_age = as.numeric(min_age),
+    max_age = as.numeric(max_age)
+  )
+
+corinthian <- corinthian %>%
+  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "OUTLINE", "SILHOUETTE"))
+
+corinthian %>%
+  count(technique)
+```
+
+
+```{r}
+pottery <- bind_rows(pottery, geometric, corinthian) 
+```
+
+```{r}
+patterns_to_remove <- c(", FRAGMENTS", ", FRAGMENT", " FRAGMENT", "A", " B", " BELLY", " \\(\\?\\)", " SQUT", " NECK", " COLUMN", ", SIN", ",ELLY", ",ELL", ",ELLS", ", TYPE", ", ", " ")
+
+pottery <- pottery %>%
+  mutate(shape_name = str_replace_all(shape_name, str_c(patterns_to_remove, collapse = "|"), ""))
+
+df <- pottery %>%
+  count(shape_name) 
+```
+
+
+```{r}
+pottery <- pottery %>%
+  mutate(shape_name = ifelse(shape_name == "CUP, LITTLE MSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTER, CLYX", "CALYX KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTER", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "FRGMENT", "FRAGMENT", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHOR,", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHOR, PNTHENIC PRIZE", "PANATHENAIC AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORPNTHENIC PRIZE", "PANATHENAIC AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRATER,ELL", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTER,ELL", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORBELLY", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "LEKYTHOSSQUT", "LEKYTHOS SQUAT", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "PLTE", "PLATE", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLE MSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLE MSTER LIP", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERCLYX", "CALYX KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERVOLUTE", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "STND", "STAND", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERCOLUMN", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORPNTHENICPRIZE", "PANATHENAIC AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORNECK", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "LBSTRON", "ALABASTRON", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "RYBLLOS", "RHYTON", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERBELL", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERS", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPSKYPHOS", "SKYPHOS", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPSTEMLESS", "CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "FIGUREVSE", "VASE", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "FRGMENTS", "FRAGMENT", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTERLIP", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "PYXISLID", "PYXIS", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHOR", "AMPHORA", shape_name)) 
+
+  
+df <- pottery %>%
+  count(shape_name) 
+```
+
+
+```{r}
+ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
+  geom_density_ridges(scale = 1) +
+  theme_minimal() +
+  labs(
+    title = "Max Age by Techinque",
+    x = "Max Age",
+    y = "Technique"
+  ) +
+  scale_fill_brewer(palette = "Set3")
+```
+
+```{r}
+# ggplot(pottery, aes(x = technique, y = max_age, fill = technique)) +
+#   geom_violin(trim = FALSE) +
+#   theme_minimal() +
+#   labs(
+#     title = "Max Age by Technique",
+#     x = "Max Age",
+#     y = "Technique"
+#   ) +
+#   theme(
+#     legend.position = "none",
+#     axis.text.x = element_text(angle = 45, hjust = 1)
+#   ) +
+#   scale_fill_brewer(palette = "Set3")
+
+```
+
+
+```{r}
+pottery %>%
+  count(technique)
+
+unique(pottery$technique)
+
+
+```
+
+```{r}
+map <- st_read(here('data/med_contour_250m/med_contour_250m.shp'))
+```
+
+```{r}
+tm_shape(map) +
+  tm_lines()
+```
+
+
+
+
+
+
+
+
+
+
