@@ -6,7 +6,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-
 ```{r}
 library(tidyverse)
 library(janitor)
@@ -14,7 +13,6 @@ library(dplyr)
 library(here)
 library(stringr)
 library(ggridges)
-
 library(tmap)
 library(sf)
 ```
@@ -103,7 +101,6 @@ corinthian %>%
   count(technique)
 ```
 
-
 ```{r}
 pottery <- bind_rows(pottery, geometric, corinthian) 
 ```
@@ -117,7 +114,6 @@ pottery <- pottery %>%
 df <- pottery %>%
   count(shape_name) 
 ```
-
 
 ```{r}
 pottery <- pottery %>%
@@ -159,7 +155,6 @@ df <- pottery %>%
   count(shape_name) 
 ```
 
-
 ```{r}
 ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
   geom_density_ridges(scale = 1) +
@@ -189,7 +184,6 @@ ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
 
 ```
 
-
 ```{r}
 pottery %>%
   count(technique)
@@ -204,16 +198,17 @@ map <- st_read(here('data/med_contour_250m/med_contour_250m.shp'))
 ```
 
 ```{r}
-tm_shape(map) +
-  tm_lines()
+bbox <- st_as_sfc(st_bbox(c(
+  xmin = 29.309808,
+  xmax = 44.840822,
+  ymin = 10.773621,
+  ymax = 38.108998), crs = st_crs(map)))
+
+map_clip <- st_intersection(map, bbox)
+
+# TROUBLE CLIPPING THIS MAP! Don't think the bbox is right? Getting only phoenecia and cyprus. 
+
+
+# tm_shape(map) +
+#   tm_lines()
 ```
-
-
-
-
-
-
-
-
-
-
