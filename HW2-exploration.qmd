@@ -1,5 +1,5 @@
 ---
-title: "testing"
+title: "HW2-exploration"
 format: html
 editor: visual
 editor_options: 
@@ -17,10 +17,12 @@ library(tmap)
 library(sf)
 ```
 
+https://www.carc.ox.ac.uk/XDB/ASP/searchOpen.asp
+
 ```{r}
 rm(list = ls())
 
-pottery <- read_csv(here('data/beazley_athenian_pottery_archive.csv'))
+athenian <- read_csv(here('data/beazley_athenian_pottery_archive.csv'))
 
 geometric <- read_csv(here('data/beazley_athenian_geometric.csv'))
 
@@ -28,7 +30,7 @@ corinthian <- read_csv(here('data/beazley_corinthian.csv'))
 ```
 
 ```{r}
-pottery <- pottery %>%
+athenian <- athenian %>%
   clean_names() %>%
   select(vase_number, 
          fabric, 
@@ -36,8 +38,8 @@ pottery <- pottery %>%
          shape_name, 
          provenance, 
          date, 
-         inscriptions, 
-         decoration, 
+         # inscriptions, 
+         # decoration, 
          latitude, 
          longitude) %>%
   separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
@@ -47,7 +49,7 @@ pottery <- pottery %>%
   ) %>%
   filter(!is.na(min_age) & !is.na(max_age))
 
-pottery <- pottery %>%
+athenian <- athenian %>%
   filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "OUTLINE", "SILHOUETTE"))
 ```
 
@@ -60,8 +62,8 @@ geometric <- geometric %>%
          shape_name, 
          provenance, 
          date, 
-         inscriptions, 
-         decoration, 
+         # inscriptions, 
+         # decoration, 
          latitude, 
          longitude) %>%
   separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
@@ -84,8 +86,8 @@ corinthian <- corinthian %>%
          shape_name, 
          provenance, 
          date, 
-         inscriptions, 
-         decoration, 
+         # inscriptions, 
+         # decoration, 
          latitude, 
          longitude) %>%
   separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
@@ -102,7 +104,8 @@ corinthian %>%
 ```
 
 ```{r}
-pottery <- bind_rows(pottery, geometric, corinthian) 
+pottery <- bind_rows(athenian, geometric, corinthian)
+  
 ```
 
 ```{r}
@@ -141,18 +144,36 @@ pottery <- pottery %>%
   mutate(shape_name = ifelse(shape_name == "RYBLLOS", "RHYTON", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "KRTERBELL", "KRATER", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "KRTERS", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERBELLS", "KRATER", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTER", "LITTLE MASTER CUP", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "CUPSKYPHOS", "SKYPHOS", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "CUPSTEMLESS", "CUP", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "FIGUREVSE", "VASE", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "FRGMENTS", "FRAGMENT", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTERLIP", "LITTLE MASTER CUP", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "PYXISLID", "PYXIS", shape_name)) %>%
-  mutate(shape_name = ifelse(shape_name == "MPHOR", "AMPHORA", shape_name)) 
+  mutate(shape_name = ifelse(shape_name == "MPHOR", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "TNKRD", "TANKARD", shape_name)) %>%
+  filter(shape_name != 'VRIOUS') %>%
+  filter(shape_name != 'UNKNOWN')
+```
 
-  
+```{r}
+pottery <- pottery %>%
+  group_by(shape_name) %>%
+  filter(n() >= 200) %>%
+  ungroup()
+
 df <- pottery %>%
   count(shape_name) 
+```
+
+```{r}
+pottery_age <- pottery %>%
+  select(fabric, technique, shape_name, min_age, max_age) %>%
+  mutate(avg_age = (min_age + max_age) / 2,
+         century = as.integer(abs(avg_age) / 100))
 ```
 
 ```{r}
@@ -168,33 +189,68 @@ ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
 ```
 
 ```{r}
-# ggplot(pottery, aes(x = technique, y = max_age, fill = technique)) +
-#   geom_violin(trim = FALSE) +
-#   theme_minimal() +
-#   labs(
-#     title = "Max Age by Technique",
-#     x = "Max Age",
-#     y = "Technique"
-#   ) +
-#   theme(
-#     legend.position = "none",
-#     axis.text.x = element_text(angle = 45, hjust = 1)
-#   ) +
-#   scale_fill_brewer(palette = "Set3")
+ggplot(pottery, aes(x = fct_rev(fct_infreq(shape_name)), y = max_age, fill = shape_name)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal() +
+  labs(
+    title = "Max Age by Shape",
+    x = "Shape Name",
+    y = "Max Age"
+  )
+```
+
+```{r}
+ggplot(pottery, aes(x = technique, y = max_age, fill = technique)) +
+  geom_violin(trim = FALSE) +
+  theme_minimal() +
+  labs(
+    title = "Max Age by Technique",
+    x = "Max Age",
+    y = "Technique"
+  ) +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_fill_brewer(palette = "Set3")
 
 ```
 
 ```{r}
-pottery %>%
-  count(technique)
+counting <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
 
-unique(pottery$technique)
-
+centuries <- pottery_age %>%
+  group_by(century) %>%
+  summarise(
+    most_common_technique = counting(technique),
+    technique_count = sum(technique == counting(technique), na.rm = TRUE),
+    most_common_shape = counting(shape_name),
+    shape_name_count = sum(shape_name == counting(shape_name), na.rm = TRUE),
+    most_common_fabric = counting(fabric),
+    fabric_count = sum(fabric == counting(fabric), na.rm = TRUE)
+  ) %>%
+   mutate(century = if_else(is.na(century), 8, century))
 
 ```
+
+
+# Map
+
 
 ```{r}
 map <- st_read(here('data/med_contour_250m/med_contour_250m.shp'))
+```
+
+```{r}
+pottery_sf <- pottery %>%
+  filter(!is.na(latitude), !is.na(longitude)) 
+
+pottery_sf <- st_as_sf(pottery_sf, coords = c("longitude", "latitude"), crs = 4326)
+
 ```
 
 ```{r}
@@ -202,13 +258,17 @@ bbox <- st_as_sfc(st_bbox(c(
   xmin = 29.309808,
   xmax = 44.840822,
   ymin = 10.773621,
-  ymax = 38.108998), crs = st_crs(map)))
+  ymax = 38.108998)))
+
+bbox <- st_transform(bbox, st_crs(4326))
 
 map_clip <- st_intersection(map, bbox)
-
-# TROUBLE CLIPPING THIS MAP! Don't think the bbox is right? Getting only phoenecia and cyprus. 
-
-
-# tm_shape(map) +
-#   tm_lines()
 ```
+
+```{r}
+tm_shape(map) +
+  tm_lines(lwd = 0.01) +
+tm_shape(pottery_sf) +
+  tm_dots(col = 'red4')
+```
+
