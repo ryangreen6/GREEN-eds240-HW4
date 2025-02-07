@@ -15,6 +15,7 @@ library(stringr)
 library(ggridges)
 library(tmap)
 library(sf)
+library(extrafont)
 ```
 
 https://www.carc.ox.ac.uk/XDB/ASP/searchOpen.asp
@@ -156,7 +157,8 @@ pottery <- pottery %>%
   mutate(shape_name = ifelse(shape_name == "MPHOR", "AMPHORA", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "TNKRD", "TANKARD", shape_name)) %>%
   filter(shape_name != 'VRIOUS') %>%
-  filter(shape_name != 'UNKNOWN')
+  filter(shape_name != 'UNKNOWN') %>%
+  filter(shape_name != 'FRAGMENT')
 ```
 
 ```{r}
@@ -180,41 +182,34 @@ pottery_age <- pottery %>%
 ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
   geom_density_ridges(scale = 1) +
   theme_minimal() +
-  labs(
-    title = "Max Age by Techinque",
-    x = "Max Age",
-    y = "Technique"
-  ) +
+  labs(title = "Max Age by Techinque",
+       x = "Max Age",
+       y = "Technique") +
   scale_fill_brewer(palette = "Set3")
 ```
 
 ```{r}
-ggplot(pottery, aes(x = fct_rev(fct_infreq(shape_name)), y = max_age, fill = shape_name)) +
+ggplot(df, aes(x = reorder(shape_name, n), y = n, fill = shape_name)) +
   geom_col() +
   coord_flip() +
   theme_minimal() +
   labs(
-    title = "Max Age by Shape",
+    title = "Shape Occurences in Dataset",
     x = "Shape Name",
-    y = "Max Age"
-  )
+    y = "Total Count")
 ```
 
 ```{r}
-ggplot(pottery, aes(x = technique, y = max_age, fill = technique)) +
-  geom_violin(trim = FALSE) +
+ggplot(pottery_age, aes(x = technique, y = shape_name, fill = technique)) +
+  geom_point() +
   theme_minimal() +
   labs(
     title = "Max Age by Technique",
     x = "Max Age",
-    y = "Technique"
-  ) +
-  theme(
-    legend.position = "none",
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  ) +
+    y = "Technique") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_brewer(palette = "Set3")
-
 ```
 
 ```{r}
@@ -236,6 +231,12 @@ centuries <- pottery_age %>%
    mutate(century = if_else(is.na(century), 8, century))
 
 ```
+
+```{r}
+ggplot(centuries, aes(-century, most_common_shape)) +
+  geom_line()
+```
+
 
 
 # Map
@@ -260,7 +261,7 @@ bbox <- st_as_sfc(st_bbox(c(
   ymin = 10.773621,
   ymax = 38.108998)))
 
-bbox <- st_transform(bbox, st_crs(4326))
+bbox <- st_set_crs(bbox, st_crs(4326))
 
 map_clip <- st_intersection(map, bbox)
 ```
@@ -271,4 +272,21 @@ tm_shape(map) +
 tm_shape(pottery_sf) +
   tm_dots(col = 'red4')
 ```
+
+
+1. What have you learned about your data? Have any potentially interesting patterns emerged?
+
+I've learned (or rather confirmed) that the ancient Greeks loved wine! The three most common pottery shapes in this dataset are the Lekythos, Cup, and Krater -- all used for mixing, pouring, and drinking wine. 
+Also interesting to see how all of the statistically significant observations drop off right around 350 BCE, the formal 'end' of Classical Greece and the beginning of Hellenistic Greece. 
+There are also many more observations from Italy than I expected!
+
+2. In HW #1, you outlined some questions that you wanted to answer using these data. Have you made any strides towards answering those questions? If yes, how so? If no, what next steps do you need to take (e.g. I need to create X plot type, I still need to track down Y data, I need to restructure existing data so that you can visualize it in Z ways, etc.)?
+
+Yes absolutely! There are clear changes in the types of styles that the Classical Greeks preferred throughout the centuries; that's what I was hoping to answer. 
+I hope to create a timeline as part of my infographic, with images of the most common vessel shapes for each century (or more frequent than that, if the data allows). 
+
+3. What challenges do you foresee encountering with your data? These can be data wrangling and / or visualization challenges.
+
+None yet; the data cleaning was a challenge, as a lot of observations had the vessel shape abbreviated in a LOT of different ways. Still working on editing those abbreviations to group the data better. 
+I'm excited to start polishing visualizations for this dataset, but I am concerned about how to insert images into plots. 
 
