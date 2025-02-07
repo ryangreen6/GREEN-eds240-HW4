@@ -1,12 +1,13 @@
 ---
 title: "HW2-exploration"
-format: html
-editor: visual
-editor_options: 
-  chunk_output_type: console
+author: "Ryan Green"
+date: 2/6/25
+format:
+  html:
+    embed-resources: true
 ---
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 library(tidyverse)
 library(janitor)
 library(dplyr)
@@ -20,7 +21,7 @@ library(extrafont)
 
 https://www.carc.ox.ac.uk/XDB/ASP/searchOpen.asp
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 rm(list = ls())
 
 athenian <- read_csv(here('data/beazley_athenian_pottery_archive.csv'))
@@ -30,7 +31,7 @@ geometric <- read_csv(here('data/beazley_athenian_geometric.csv'))
 corinthian <- read_csv(here('data/beazley_corinthian.csv'))
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 athenian <- athenian %>%
   clean_names() %>%
   select(vase_number, 
@@ -54,7 +55,7 @@ athenian <- athenian %>%
   filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "OUTLINE", "SILHOUETTE"))
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 geometric <- geometric %>%
   clean_names() %>%
   select(vase_number, 
@@ -78,7 +79,7 @@ geometric <- geometric %>%
   filter(technique %in% c("SILHOUETTE", "OUTLINE", "GEOMETRIC"))
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 corinthian <- corinthian %>%
   clean_names() %>%
   select(vase_number, 
@@ -104,12 +105,12 @@ corinthian %>%
   count(technique)
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 pottery <- bind_rows(athenian, geometric, corinthian)
   
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 patterns_to_remove <- c(", FRAGMENTS", ", FRAGMENT", " FRAGMENT", "A", " B", " BELLY", " \\(\\?\\)", " SQUT", " NECK", " COLUMN", ", SIN", ",ELLY", ",ELL", ",ELLS", ", TYPE", ", ", " ")
 
 pottery <- pottery %>%
@@ -119,7 +120,7 @@ df <- pottery %>%
   count(shape_name) 
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 pottery <- pottery %>%
   mutate(shape_name = ifelse(shape_name == "CUP, LITTLE MSTERND", "LITTLE MASTER CUP", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "KRTER, CLYX", "CALYX KRATER", shape_name)) %>%
@@ -161,7 +162,7 @@ pottery <- pottery %>%
   filter(shape_name != 'FRAGMENT')
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 pottery <- pottery %>%
   group_by(shape_name) %>%
   filter(n() >= 200) %>%
@@ -171,14 +172,14 @@ df <- pottery %>%
   count(shape_name) 
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 pottery_age <- pottery %>%
   select(fabric, technique, shape_name, min_age, max_age) %>%
   mutate(avg_age = (min_age + max_age) / 2,
          century = as.integer(abs(avg_age) / 100))
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
   geom_density_ridges(scale = 1) +
   theme_minimal() +
@@ -188,7 +189,7 @@ ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
   scale_fill_brewer(palette = "Set3")
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 ggplot(df, aes(x = reorder(shape_name, n), y = n, fill = shape_name)) +
   geom_col() +
   coord_flip() +
@@ -199,7 +200,7 @@ ggplot(df, aes(x = reorder(shape_name, n), y = n, fill = shape_name)) +
     y = "Total Count")
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 ggplot(pottery_age, aes(x = technique, y = shape_name, fill = technique)) +
   geom_point() +
   theme_minimal() +
@@ -208,11 +209,11 @@ ggplot(pottery_age, aes(x = technique, y = shape_name, fill = technique)) +
     x = "Max Age",
     y = "Technique") +
   theme(legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1)) +
+        axis.text.x = element_text(angle = 45, hjust = 1)) + # I'm sorry I know the 45 degree angle text is not recommended, this isn't final!
   scale_fill_brewer(palette = "Set3")
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 counting <- function(x) {
   ux <- unique(x)
   ux[which.max(tabulate(match(x, ux)))]
@@ -232,21 +233,14 @@ centuries <- pottery_age %>%
 
 ```
 
-```{r}
-ggplot(centuries, aes(-century, most_common_shape)) +
-  geom_line()
-```
-
-
-
 # Map
 
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 map <- st_read(here('data/med_contour_250m/med_contour_250m.shp'))
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 pottery_sf <- pottery %>%
   filter(!is.na(latitude), !is.na(longitude)) 
 
@@ -254,7 +248,7 @@ pottery_sf <- st_as_sf(pottery_sf, coords = c("longitude", "latitude"), crs = 43
 
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 bbox <- st_as_sfc(st_bbox(c(
   xmin = 29.309808,
   xmax = 44.840822,
@@ -266,7 +260,7 @@ bbox <- st_set_crs(bbox, st_crs(4326))
 map_clip <- st_intersection(map, bbox)
 ```
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 tm_shape(map) +
   tm_lines(lwd = 0.01) +
 tm_shape(pottery_sf) +
