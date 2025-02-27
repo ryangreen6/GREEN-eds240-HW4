@@ -1,0 +1,472 @@
+---
+title: "HW3-drafting-viz"
+author: "Ryan Green"
+date: 2/23/25
+format:
+  html:
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+### All questions at the bottom!
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(janitor)
+library(dplyr)
+library(here)
+library(stringr)
+library(tmap)
+library(sf)
+library(extrafont)
+
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+library(png)
+library(grid)
+
+library(showtext)
+```
+
+### Data Source:
+https://www.carc.ox.ac.uk/XDB/ASP/searchOpen.asp
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+rm(list = ls())
+
+# Read in data sets
+athenian <- read_csv(here('data/beazley_athenian_pottery_archive.csv'))
+geometric <- read_csv(here('data/beazley_athenian_geometric.csv'))
+corinthian <- read_csv(here('data/beazley_corinthian.csv'))
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Basic data cleaning before combining datasets
+athenian <- athenian %>%
+  clean_names() %>%
+  select(vase_number, 
+         fabric, 
+         technique,
+         shape_name, 
+         provenance, 
+         date,
+         latitude, 
+         longitude) %>%
+  separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
+  mutate(
+    min_age = as.numeric(min_age),
+    max_age = as.numeric(max_age)
+  ) %>%
+  filter(!is.na(min_age) & !is.na(max_age))
+
+# Keeping only techniques that are most prevalent (some only have a single observation)
+athenian <- athenian %>%
+  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "SILHOUETTE"))
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Basic data cleaning before combining datasets
+geometric <- geometric %>%
+  clean_names() %>%
+  select(vase_number, 
+         fabric, 
+         technique,
+         shape_name, 
+         provenance, 
+         date, 
+         latitude, 
+         longitude) %>%
+  separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
+  mutate(
+    min_age = as.numeric(min_age),
+    max_age = as.numeric(max_age)
+  ) %>%
+  mutate(technique = ifelse(is.na(technique), "GEOMETRIC", technique))
+
+geometric <- geometric %>%
+  filter(technique %in% c("SILHOUETTE", "GEOMETRIC"))
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Basic data cleaning before combining datasets
+corinthian <- corinthian %>%
+  clean_names() %>%
+  select(vase_number, 
+         fabric, 
+         technique,
+         shape_name, 
+         provenance, 
+         date, 
+         latitude, 
+         longitude) %>%
+  separate(date, into = c("max_age", "min_age"), sep = " to ") %>%
+  mutate(
+    min_age = as.numeric(min_age),
+    max_age = as.numeric(max_age)
+  )
+
+corinthian <- corinthian %>%
+  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "SILHOUETTE"))
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Binding the datasets into one
+pottery <- bind_rows(athenian, geometric, corinthian)
+
+# Now for some extreme data cleaning; removing unusual punctuation and overly-specific identifiers
+patterns_to_remove <- c(", FRAGMENTS", ", FRAGMENT", " FRAGMENT", "A", " B", " BELLY", " \\(\\?\\)", " SQUT", " NECK", " COLUMN", ", SIN", ",ELLY", ",ELL", ",ELLS", ", TYPE", ", ", " ")
+
+pottery <- pottery %>%
+  mutate(shape_name = str_replace_all(shape_name, str_c(patterns_to_remove, collapse = "|"), ""))
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# The bulk of the data cleaning; this dataset is filled with different abbreviations and unidentifiable observations (like 'FRAGMENT')
+pottery <- pottery %>%
+  mutate(shape_name = ifelse(shape_name == "CUP, LITTLE MSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTER, CLYX", "CALYX KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTER", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "FRGMENT", "FRAGMENT", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHOR,", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHOR, PNTHENIC PRIZE", "PANATHENAIC AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORPNTHENIC PRIZE", "PANATHENAIC AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRATER,ELL", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTER,ELL", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORBELLY", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "LEKYTHOSSQUT", "LEKYTHOS SQUAT", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "PLTE", "PLATE", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLE MSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLE MSTER LIP", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERCLYX", "CALYX KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERVOLUTE", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "STND", "STAND", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERCOLUMN", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORPNTHENICPRIZE", "PANATHENAIC AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHORNECK", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "LBSTRON", "ALABASTRON", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "RYBLLOS", "RHYTON", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERBELL", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERS", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "KRTERBELLS", "KRATER", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTERND", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTER", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPSKYPHOS", "SKYPHOS", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPSTEMLESS", "CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "FIGUREVSE", "VASE", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "FRGMENTS", "FRAGMENT", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPLITTLEMSTERLIP", "LITTLE MASTER CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "PYXISLID", "PYXIS", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "MPHOR", "AMPHORA", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "TNKRD", "TANKARD", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPSIN", "CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CALYX KRATER", "KRATER", shape_name)) %>%
+  filter(shape_name != 'VRIOUS') %>%
+  filter(shape_name != 'UNKNOWN') %>%
+  filter(shape_name != 'FRAGMENT')
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Further cleaning, keeping any shapes that have more than 200 observations, creating an average age column, and cleaning the technique names
+pottery <- pottery %>%
+  group_by(shape_name) %>%
+  filter(n() >= 200) %>%
+  mutate(avg_age = (min_age + max_age) / 2) %>%
+  ungroup() %>%
+  mutate(technique = str_replace_all(technique, "-", " "),
+         technique = str_to_title(tolower(technique)))
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Adding my favorite font, Lora
+font_add_google(name = 'Lora', family = 'lora')
+
+showtext_auto()
+showtext_opts(dpi = 100)
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Creating a new dataframe from `pottery` to use for techniques over time. This new frame, `techniques_overtime` has only observations that have dates
+pottery_age <- pottery %>%
+  select(fabric, technique, shape_name, min_age, max_age) %>%
+  mutate(avg_age = (min_age + max_age) / 2,
+         century = as.integer(abs(avg_age) / 100))
+
+techniques_overtime <- pottery_age %>%
+  group_by(technique) %>%
+  summarise(
+    max_age = min(max_age, na.rm = TRUE),
+    min_age = max(min_age, na.rm = TRUE)
+  ) %>%
+  ungroup() 
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Custom colors for each technique
+custom_colors <- c(
+  "Red Figure" = "brown3",
+  "Black Figure" = "lightsteelblue3",
+  "Black Glaze" = "tan2",
+  "Black Pattern" = "cadetblue",
+  "Silhouette" = "floralwhite",
+  "Geometric" = "#C3613A")
+
+# Creating overlapping bar timeline of techniques over time. No axes on this plot, as I intend to combine it with the next timeline, and they will share the same x axis. Y axis here is irrelevant. 
+
+ggplot(techniques_overtime, aes(y = fct_reorder(technique, 
+                                                min_age, 
+                                                .fun = min, 
+                                                .desc = TRUE))) +
+  geom_segment(aes(x = max_age, xend = min_age, yend = technique, color = technique), 
+               size = 3, alpha = 0.8) +
+  geom_text(aes(x = (min_age + max_age) / 2, 
+                label = technique,
+                family = 'lora'), 
+            color = 'black', 
+            vjust = 0.5, 
+            size = 2.4,
+            fontface = 'italic') +
+  scale_y_discrete(expand = c(0, 2)) +
+  labs(title = "Decoration Techniques") +
+  theme_void() +
+  theme(
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_line(color = NA),
+    panel.grid.minor = element_line(color = NA),
+    plot.title = element_text(hjust = 0.5,
+                              family = 'lora'),
+    legend.position = 'none',
+    plot.background = element_rect(fill = 'bisque1', color = NA)) +
+  scale_color_manual(values = custom_colors) +
+  theme(aspect.ratio = 1/10)
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Creating a function to count observations
+counting <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Creating a new dataframe with most common technique, shape, and maker (`fabric`)
+centuries <- pottery_age %>%
+  group_by(century) %>%
+  summarise(
+    most_common_technique = counting(technique),
+    technique_count = sum(technique == counting(technique), na.rm = TRUE),
+    most_common_shape = counting(shape_name),
+    shape_name_count = sum(shape_name == counting(shape_name), na.rm = TRUE),
+    most_common_fabric = counting(fabric),
+    fabric_count = sum(fabric == counting(fabric), na.rm = TRUE)
+  ) %>%
+  mutate(century = if_else(is.na(century), 8, century),
+         most_common_shape = str_to_title(tolower(most_common_shape)),
+         most_common_fabric = str_to_title(tolower(most_common_fabric)),
+         century = century * 100)
+
+# Making the centuries a numeric value
+centuries <- centuries %>%
+  mutate(century = as.numeric(as.character(century)))
+
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# importing my custom pottery shape icons
+rhyton <- readPNG("images/rhyton.png")
+rhyton <- rasterGrob(rhyton, interpolate = TRUE)
+
+krater <- readPNG("images/krater.png")
+krater <- rasterGrob(krater, interpolate = TRUE)
+
+lekythos <- readPNG("images/lekythos.png")
+lekythos <- rasterGrob(lekythos, interpolate = TRUE)
+
+lotrophouros <- readPNG("images/lotrophouros.png")
+lotrophouros <- rasterGrob(lotrophouros, interpolate = TRUE)
+
+oinochoe <- readPNG("images/oinochoe.png")
+oinochoe <- rasterGrob(oinochoe, interpolate = TRUE)
+
+amphora <- readPNG("images/amphora.png")
+amphora <- rasterGrob(amphora, interpolate = TRUE)
+
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Creating timeline with most common shape, technique, and maker 
+ggplot(centuries, aes(x = century, 
+                      y = 1)) +
+  geom_point(size = 0, 
+             color = NA) +
+  geom_text(aes(x = (century - 50) * 2, 
+                label = most_common_shape,
+                family = 'lora',
+                fontface = 'italic'), 
+            vjust = -2.8,
+            size = 2.3) +
+  geom_text(aes(x = (century - 50) * 2, 
+                label = most_common_fabric,
+                family = 'lora'), 
+            vjust = -1,
+            size = 2.3) +
+  geom_hline(yintercept = 1, 
+             color = "black") +
+  scale_x_reverse(
+    breaks = c(0, 100, 200, 300, 400, 500, 600, 700, 800) * 2,
+    labels = function(x) x / 2,
+    limits = c(820 * 2, -20 * 2)
+  ) +
+  scale_y_continuous(limits = c(1, 1.1), 
+                     expand = c(0, 0)) +
+  labs(x = "Most Common Technique, Shape, and Maker by Century BCE", 
+       y = "", 
+       title = "") +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(family = 'lora'),
+    axis.title.x = element_text(family = 'lora',
+                                face = 'italic'),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5,
+                              family = 'lora'),
+    legend.position = "none",
+    plot.background = element_rect(fill = "bisque1", color = NA)
+  ) + 
+  theme(aspect.ratio = 1/10) +
+  annotation_custom(rhyton, xmin = -1600, xmax = -1400, ymin = 1.01, ymax = 1.15) + 
+  annotation_custom(oinochoe, xmin = -1400, xmax = -1200, ymin = 1.03, ymax = 1.16) +
+  annotation_custom(lotrophouros, xmin = -1170, xmax = -1030, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(lekythos, xmin = -980, xmax = -820, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(lekythos, xmin = -780, xmax = -620, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(krater, xmin = -600, xmax = -420, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(amphora, xmin = -400, xmax = -220, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(amphora, xmin = -200, xmax = -20, ymin = 1.02, ymax = 1.16) +
+  coord_cartesian(clip = "off")
+
+
+```
+
+
+# Map
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Converting `pottery` to a shapefile for mapping
+pottery_sf <- pottery %>%
+  filter(!is.na(latitude), !is.na(longitude))
+
+pottery_sf <- st_as_sf(pottery_sf, coords = c("longitude", "latitude"), crs = 4326)
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Adding and clipping the world map to the Mediterranean region
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+world <- st_transform(world, crs = 3857)
+
+bbox_med <- st_as_sfc(st_bbox(c(
+  xmin = 5,
+  xmax = 35.5,
+  ymin = 30,
+  ymax = 46
+), crs = 4326))
+
+bbox_med <- st_transform(bbox_med, crs = st_crs(world))
+
+med <- st_intersection(world, bbox_med)
+
+pottery_sf <- st_transform(pottery_sf, crs = st_crs(med))
+```
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Sorting `pottery_sf` by average age, in an attempt to get the tm_dots to appear with oldest observations on top
+pottery_sf <- pottery_sf %>% arrange(avg_age)
+
+# Creating map, points colored by technique with custom colors
+tm_shape(med) +
+  tm_polygons(col = 'wheat3',
+              border.col = 'grey30',
+              lwd = 0.2,
+              alpha = 0.5) +
+  tm_shape(pottery_sf) +
+  tm_dots(col = "technique", 
+          size = .5, 
+          palette = custom_colors) +
+  tm_layout(
+    outer.margins = c(0,0,0,0),
+    bg.color = 'bisque1'
+  ) 
+```
+
+
+### 1. Which option do you plan to pursue? It’s okay if this has changed since HW #1.
+
+Still option #1
+
+### 2. Restate your question(s). Has this changed at all since HW #1? If yes, how so?
+
+I want to answer "How did ancient Athenian pottery decoration techniques change over time?"
+
+### 3. Explain which variables from your data set(s) you will use to answer your question(s), and how.
+
+There are three main variables I'll be examining: decoration technique (`technique`), date, and geographic location. 
+I have made two timelines, the first showing the prevalence of each decoration technique over time, the second showing the most common shape and technique for each century (8th to 1st century BCE). 
+The third visualization is a map of each observation's location, colored by technique. It's clear to see that earlier techniques (geometric, silhouette) originated around Athens, and then later techniques spread (red figure).
+
+### at least two data visualizations that I could borrow / adapt pieces from: 
+
+!['Pottery Types and Designs, inspiration for the icons'](images/pottery_designs.png){fig-alt = 'Inspiration for the icons'}
+
+!['Timeline Inspiration'](images/timeline_example.jpg){fig-alt = 'Timeline Inspiration'}
+
+### Hand-drawn anticipated visualization:
+
+!['Hand-Drawn Mockup'](images/IMG_1670.jpeg){fig-alt = 'Hand Drawn Mockup'}
+### 6. Mock up all of your hand drawn visualizations using code
+
+The three rendered visualizations in the code above are my mockups. Still need some adjustments and to be assembled into one plot!
+
+### 7. Answer the following questions:
+
+a. What challenges did you encounter or anticipate encountering as you continue to build / iterate on your visualizations in R? If you struggled with mocking up any of your three visualizations (from #6, above), describe those challenges here.
+
+Well! I had a lot of issues placing the custom icons in the timeline plot. I also had to multiply the x axis by two and fix the x breaks in order to get the spacing I need for the geom_text annotations to not overlap, although this still isn't perfect. 
+Ultimately I plan to stack the two timelines on top of one another, where the colored technique bars timeline plot is on top of the centuries timeline plot with the icons, so that the x axes are aligned. 
+The map is also giving some issues, I wanted to maintain the custom colors from the technique bars timeline in the map, but there are so many points it's hard to tell what is what. I'll have to play with the colors more I think. And fix the legend. 
+Still need to add annotations for Archaic/Classical/Hellenistic GreeK eras. 
+
+b. What ggplot extension tools / packages do you need to use to build your visualizations? Are there any that we haven’t covered in class that you’ll be learning how to use for your visualizations?
+
+library(rnaturalearth) and library(rnaturalearthdata) have the world map I'm using for my map plot. They seem to require each other, so I'm using both. 
+library(png) and library(grid) allowed me to put the custom icons on the centuries timeline! 
+I don't think any of these were covered in class. I had fun finding new packages that let me do what I needed to do!
+
+c. What feedback do you need from the instructional team and / or your peers to ensure that your intended message is clear?
+
+Honestly, not sure. My question doesn't have a definitive answer, at least not one that can be answered in a single infographic (a whole book maybe). I realize that my dataset choice may not have been the best for this assignment, if we require a clear message. This will make a nice infographic though. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

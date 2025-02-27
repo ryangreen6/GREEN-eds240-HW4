@@ -17,6 +17,9 @@ library(ggridges)
 library(tmap)
 library(sf)
 library(extrafont)
+
+library(rnaturalearth)
+library(rnaturalearthdata)
 ```
 
 https://www.carc.ox.ac.uk/XDB/ASP/searchOpen.asp
@@ -52,7 +55,7 @@ athenian <- athenian %>%
   filter(!is.na(min_age) & !is.na(max_age))
 
 athenian <- athenian %>%
-  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "OUTLINE", "SILHOUETTE"))
+  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "SILHOUETTE"))
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
@@ -76,7 +79,7 @@ geometric <- geometric %>%
   mutate(technique = ifelse(is.na(technique), "GEOMETRIC", technique))
 
 geometric <- geometric %>%
-  filter(technique %in% c("SILHOUETTE", "OUTLINE", "GEOMETRIC"))
+  filter(technique %in% c("SILHOUETTE", "GEOMETRIC"))
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
@@ -99,7 +102,7 @@ corinthian <- corinthian %>%
   )
 
 corinthian <- corinthian %>%
-  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "OUTLINE", "SILHOUETTE"))
+  filter(technique %in% c("BLACK GLAZE", "BLACK-FIGURE", "RED-FIGURE", "BLACK PATTERN", "SILHOUETTE"))
 
 corinthian %>%
   count(technique)
@@ -157,6 +160,8 @@ pottery <- pottery %>%
   mutate(shape_name = ifelse(shape_name == "PYXISLID", "PYXIS", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "MPHOR", "AMPHORA", shape_name)) %>%
   mutate(shape_name = ifelse(shape_name == "TNKRD", "TANKARD", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CUPSIN", "CUP", shape_name)) %>%
+  mutate(shape_name = ifelse(shape_name == "CALYX KRATER", "KRATER", shape_name)) %>%
   filter(shape_name != 'VRIOUS') %>%
   filter(shape_name != 'UNKNOWN') %>%
   filter(shape_name != 'FRAGMENT')
@@ -166,6 +171,7 @@ pottery <- pottery %>%
 pottery <- pottery %>%
   group_by(shape_name) %>%
   filter(n() >= 200) %>%
+  mutate(avg_age = (min_age + max_age) / 2) %>%
   ungroup()
 
 df <- pottery %>%
@@ -180,13 +186,49 @@ pottery_age <- pottery %>%
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
-ggplot(pottery, aes(x = max_age, y = technique, fill = technique)) +
-  geom_density_ridges(scale = 1) +
+ggplot(pottery, aes(x = max_age, 
+                    y = fct_reorder(technique, avg_age, .fun = min, .desc = TRUE),
+                    fill = technique)) +
+  geom_density_ridges(scale = .9) +
   theme_minimal() +
-  labs(title = "Max Age by Techinque",
-       x = "Max Age",
-       y = "Technique") +
-  scale_fill_brewer(palette = "Set3")
+  labs(title = "Athenian Pottery Decoration Technique Over Time",
+       x = "Age (BCE)",
+       y = NULL) +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_x_continuous(limits = c(-800, -300))
+
+```
+
+```{r}
+filter_pottery <- pottery %>%
+  add_count(shape_name) %>%
+  filter(n > 700) 
+```
+
+```{r}
+ggplot(filter_pottery, aes(y = technique)) +
+  geom_segment(aes(x = max_age, xend = min_age, yend = technique), size = 3, color = "steelblue") +
+  geom_text(aes(x = (min_age + max_age) / 2, label = technique), vjust = -0.5, size = 3) +
+  #scale_y_discrete(expand = c(0, 0)) +
+  theme_minimal() +
+  labs(title = "Timeline Plot with Durations", x = "", y = "")
+
+```
+
+```{r}
+ggplot(filter_pottery, aes(x = max_age, 
+                    y = fct_reorder(shape_name, avg_age, .fun = min, .desc = TRUE),
+                    fill = shape_name)) +
+  geom_density_ridges(scale = .9) +
+  theme_minimal() +
+  labs(title = "Athenian",
+       x = "Age (BCE)",
+       y = NULL) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_brewer(palette = "Set3") +
+  scale_x_continuous(limits = c(-830, -300))
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
@@ -233,38 +275,127 @@ centuries <- pottery_age %>%
 
 ```
 
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+# Ridge plot of techniques over time
+
+ggplot(pottery_age, aes(x = max_age, 
+                        y = fct_reorder(technique, 
+                                        avg_age, 
+                                        .fun = min, 
+                                        .desc = TRUE), 
+                        fill = technique, 
+                        na_rm = TRUE)) +
+  geom_density_ridges(scale = 3, 
+                      alpha = .7, 
+                      lwd = 0.1) +
+  theme_minimal() +
+  labs(title = "Athenian Pottery Decoration Technique Over Time",
+       x = "",
+       y = NULL) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_x_continuous(limits = c(-800, 0)) +
+  scale_y_discrete(expand = c(1, 5)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none",
+        panel.grid.major = element_line(color = NA),
+        panel.grid.minor = element_line(color = NA))
+```
+
+```{r}
+shapes_overtime <- pottery_age %>%
+  group_by(shape_name) %>%
+  summarise(
+    max_age = min(max_age, na.rm = TRUE),
+    min_age = max(min_age, na.rm = TRUE)
+   ) %>%
+  ungroup() %>%
+  mutate(shape_name = str_to_title(tolower(shape_name)))
+```
+
+
+```{r}
+ggplot(shapes_overtime, aes(y = fct_reorder(shape_name, 
+                                                min_age, 
+                                                .fun = min, 
+                                                .desc = TRUE))) +
+  geom_segment(aes(x = max_age, xend = min_age, yend = shape_name, color = shape_name), 
+               size = 3, alpha = 0.8) +
+  geom_text(aes(x = (min_age + max_age) / 2, label = shape_name, color = 'white'), 
+            vjust = 0.5, size = 2.2) +
+  scale_y_discrete(expand = c(1, 8)) +
+  labs(title = "Timeline Plot with Durations", x = "", y = "") +
+  theme_minimal() +
+  theme(
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_line(color = NA),
+    panel.grid.minor = element_line(color = NA),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = 'none')
+```
+
+
+
 # Map
 
-
-```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
-map <- st_read(here('data/med_contour_250m/med_contour_250m.shp'))
-```
-
-```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+```{r}
 pottery_sf <- pottery %>%
-  filter(!is.na(latitude), !is.na(longitude)) 
+  filter(!is.na(latitude), !is.na(longitude))
 
 pottery_sf <- st_as_sf(pottery_sf, coords = c("longitude", "latitude"), crs = 4326)
-
 ```
 
+
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
-bbox <- st_as_sfc(st_bbox(c(
-  xmin = 29.309808,
-  xmax = 44.840822,
-  ymin = 10.773621,
-  ymax = 38.108998)))
-
-bbox <- st_set_crs(bbox, st_crs(4326))
-
-map_clip <- st_intersection(map, bbox)
+# map <- st_read(here('data/med_contour_250m/med_contour_250m.shp'))
+# 
+# pottery_sf <- pottery %>%
+#   filter(!is.na(latitude), !is.na(longitude)) 
+# 
+# pottery_sf <- st_as_sf(pottery_sf, coords = c("longitude", "latitude"), crs = 4326)
+# 
+# 
+# bbox <- st_as_sfc(st_bbox(c(
+#   xmin = 29.309808,
+#   xmax = 44.840822,
+#   ymin = 10.773621,
+#   ymax = 38.108998)))
+# 
+# bbox <- st_set_crs(bbox, st_crs(4326))
+# 
+# map_clip <- st_intersection(map, bbox)
+# 
+# tm_shape(map) +
+#   tm_lines(lwd = 0.01) +
+# tm_shape(pottery_sf) +
+#   tm_dots(col = 'technique')
 ```
 
-```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
-tm_shape(map) +
-  tm_lines(lwd = 0.01) +
+```{r}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+world <- st_transform(world, crs = 3857)
+
+bbox_med <- st_as_sfc(st_bbox(c(
+  xmin = -6,
+  xmax = 36,
+  ymin = 30,
+  ymax = 46
+), crs = 4326))
+
+bbox_med <- st_transform(bbox_med, crs = st_crs(world))
+
+med <- st_intersection(world, bbox_med)
+
+pottery_sf <- st_transform(pottery_sf, crs = st_crs(med))
+
+tm_shape(med) +
+  tm_polygons(alpha = 0.5) +
 tm_shape(pottery_sf) +
-  tm_dots(col = 'red4')
+  tm_dots(col = "avg_age", size = .1) +
+  tm_layout()
+
 ```
 
 
