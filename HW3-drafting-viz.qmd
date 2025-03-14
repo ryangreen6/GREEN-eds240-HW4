@@ -20,6 +20,7 @@ library(stringr)
 library(tmap)
 library(sf)
 library(extrafont)
+library(patchwork)
 
 library(rnaturalearth)
 library(rnaturalearthdata)
@@ -211,37 +212,45 @@ custom_colors <- c(
   "Black Pattern" = "cadetblue",
   "Silhouette" = "floralwhite",
   "Geometric" = "#C3613A")
+```
 
+## Plot 1
+```{r}
 # Creating overlapping bar timeline of techniques over time. No axes on this plot, as I intend to combine it with the next timeline, and they will share the same x axis. Y axis here is irrelevant. 
 
-ggplot(techniques_overtime, aes(y = fct_reorder(technique, 
-                                                min_age, 
-                                                .fun = min, 
-                                                .desc = TRUE))) +
-  geom_segment(aes(x = max_age, xend = min_age, yend = technique, color = technique), 
+plot1 <- ggplot(techniques_overtime, aes(y = fct_reorder(technique, min_age, .fun = min, .desc = TRUE))) +
+  geom_segment(aes(x = -max_age, xend = -min_age, yend = technique, color = technique), 
                size = 3, alpha = 0.8) +
-  geom_text(aes(x = (min_age + max_age) / 2, 
+  geom_text(aes(x = -((min_age + max_age) / 2), 
                 label = technique,
                 family = 'lora'), 
             color = 'black', 
             vjust = 0.5, 
-            size = 2.4,
+            size = 12,
             fontface = 'italic') +
-  scale_y_discrete(expand = c(0, 2)) +
-  labs(title = "Decoration Techniques") +
+  scale_x_reverse(limits = c(820, -35), expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0.1, 0)) +
   theme_void() +
+  labs(title = "Prevalence of Decoration Techniques Over Time") +
   theme(
     axis.ticks.x = element_blank(),
     axis.text.y = element_blank(),
-    panel.grid.major = element_line(color = NA),
-    panel.grid.minor = element_line(color = NA),
-    plot.title = element_text(hjust = 0.5,
-                              family = 'lora'),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5, family = 'lora', face = 'italic', size = 70),
     legend.position = 'none',
-    plot.background = element_rect(fill = 'bisque1', color = NA)) +
+    plot.background = element_rect(fill = 'bisque1', color = NA),
+    plot.margin = unit(c(0.5,0,0,0), "cm")
+  ) +
   scale_color_manual(values = custom_colors) +
-  theme(aspect.ratio = 1/10)
+  theme(aspect.ratio = 1/10) +
+  coord_cartesian(clip = "off")
+
+ggsave("outputs/plot1.png", plot1, width = 6, height = 1, units = "in", dpi = 900)
+
+plot1
 ```
+
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 # Creating a function to count observations
@@ -294,61 +303,108 @@ amphora <- rasterGrob(amphora, interpolate = TRUE)
 
 ```
 
-```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+## Plot 2
+
+```{r}
 # Creating timeline with most common shape, technique, and maker 
-ggplot(centuries, aes(x = century, 
-                      y = 1)) +
-  geom_point(size = 0, 
-             color = NA) +
-  geom_text(aes(x = (century - 50) * 2, 
+plot2 <- ggplot(centuries, aes(x = century, y = 1)) +
+  geom_text(aes(x = (century - 50), 
                 label = most_common_shape,
                 family = 'lora',
                 fontface = 'italic'), 
             vjust = -2.8,
-            size = 2.3) +
-  geom_text(aes(x = (century - 50) * 2, 
+            size = 12) +
+  geom_text(aes(x = (century - 50), 
                 label = most_common_fabric,
                 family = 'lora'), 
             vjust = -1,
-            size = 2.3) +
-  geom_hline(yintercept = 1, 
-             color = "black") +
+            size = 12) +
+  geom_hline(yintercept = 1, color = "black") +
+  geom_vline(xintercept = c(0, 100, 200, 300, 400, 500, 600, 700, 800),
+             linetype = "solid",
+             color = "black",
+             size = 0.1) +
   scale_x_reverse(
-    breaks = c(0, 100, 200, 300, 400, 500, 600, 700, 800) * 2,
-    labels = function(x) x / 2,
-    limits = c(820 * 2, -20 * 2)
+    breaks = c(0, 100, 200, 300, 400, 500, 600, 700, 800),
+    labels = function(x) x,
+    limits = c(830, -30),
+    expand = c(0, 0)
   ) +
-  scale_y_continuous(limits = c(1, 1.1), 
-                     expand = c(0, 0)) +
-  labs(x = "Most Common Technique, Shape, and Maker by Century BCE", 
+  scale_y_continuous(limits = c(1, 1.1), expand = c(0, 0)) +
+  labs(x = "Most Common Decoration Technique, Vessel Shape, and Maker for each Century BCE", 
        y = "", 
        title = "") +
   theme_minimal() +
   theme(
     axis.text.y = element_blank(),
-    axis.text.x = element_text(family = 'lora'),
-    axis.title.x = element_text(family = 'lora',
-                                face = 'italic'),
+    axis.text.x = element_text(family = 'lora', 
+                               size = 60),
+    axis.title.x = element_text(family = 'lora', 
+                                face = 'italic',
+                                size = 70),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    plot.title = element_text(hjust = 0.5,
+    plot.title = element_text(hjust = 0.5, 
                               family = 'lora'),
     legend.position = "none",
-    plot.background = element_rect(fill = "bisque1", color = NA)
-  ) + 
-  theme(aspect.ratio = 1/10) +
-  annotation_custom(rhyton, xmin = -1600, xmax = -1400, ymin = 1.01, ymax = 1.15) + 
-  annotation_custom(oinochoe, xmin = -1400, xmax = -1200, ymin = 1.03, ymax = 1.16) +
-  annotation_custom(lotrophouros, xmin = -1170, xmax = -1030, ymin = 1.02, ymax = 1.16) +
-  annotation_custom(lekythos, xmin = -980, xmax = -820, ymin = 1.02, ymax = 1.16) +
-  annotation_custom(lekythos, xmin = -780, xmax = -620, ymin = 1.02, ymax = 1.16) +
-  annotation_custom(krater, xmin = -600, xmax = -420, ymin = 1.02, ymax = 1.16) +
-  annotation_custom(amphora, xmin = -400, xmax = -220, ymin = 1.02, ymax = 1.16) +
-  annotation_custom(amphora, xmin = -200, xmax = -20, ymin = 1.02, ymax = 1.16) +
+    plot.background = element_rect(fill = "bisque1", 
+                                   color = NA),
+    plot.margin = unit(c(-0.7,0,-0.5,-0.5), "cm")) + 
+  theme(aspect.ratio = 2/20) +
+  coord_cartesian(xlim = c(835, -35),
+                  clip = "off") +
+  annotation_custom(rhyton, xmin = -700, xmax = -800, ymin = 1.01, ymax = 1.15) +
+  annotation_custom(oinochoe, xmin = -600, xmax = -700, ymin = 1.03, ymax = 1.16) +
+  annotation_custom(lotrophouros, xmin = -515, xmax = -585, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(lekythos, xmin = -400, xmax = -500, ymin = 1.01, ymax = 1.17) +
+  annotation_custom(lekythos, xmin = -300, xmax = -400, ymin = 1.01, ymax = 1.17) +
+  annotation_custom(krater, xmin = -205, xmax = -295, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(amphora, xmin = -110, xmax = -200, ymin = 1.02, ymax = 1.16) +
+  annotation_custom(amphora, xmin = -10, xmax = -100, ymin = 1.02, ymax = 1.16)
+
+ggsave("outputs/plot2.png", plot2, width = 6, height = 2, units = "in", dpi = 900)
+
+#plot2
+```
+
+```{r}
+events <- data.frame(
+  start_date = c(800, 500, 323, 146),
+  end_date = c(500, 323, 146, 0),
+  period = c('Archaic Period', 'Classical Greece', 'Hellenistic Greece','Roman Greece')
+)
+
+period_colors <- c(
+  "Archaic Period" = "orangered3",
+  "Classical Greece" = "goldenrod1",
+  "Hellenistic Greece" = "snow",
+  "Roman Greece" = "mediumpurple1"
+)
+
+
+plot3 <- ggplot(events, aes(x = period, y = 1)) +
+  geom_segment(data = events, aes(x = start_date, xend = end_date,
+                   y = 1, yend = 1, color = period),
+               linewidth = 3) +
+  geom_text(data = events, aes(x = (start_date + end_date) / 2,
+                y = 1,
+                label = period),
+            family = "lora",
+            fontface = "bold",
+            size = 12,
+            color = "black") +
+  scale_x_reverse() +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.background = element_rect(fill = 'bisque1',
+                                       color = NA),
+        plot.margin = unit(c(0,-0.7,0,-0.7), "cm")) +
+  scale_color_manual(values = period_colors) +
   coord_cartesian(clip = "off")
 
-
+ggsave("outputs/plot3.png", plot3, width = 6, height = 0.2, units = "in", dpi = 900)
 ```
+
 
 
 # Map
@@ -374,33 +430,161 @@ bbox_med <- st_as_sfc(st_bbox(c(
   ymax = 46
 ), crs = 4326))
 
+bbox_athens <- st_as_sfc(st_bbox(c(
+  xmin = 23.5,
+  xmax = 24,
+  ymin = 37.8,
+  ymax = 38.1
+), crs = 4326))
+
 bbox_med <- st_transform(bbox_med, crs = st_crs(world))
+bbox_athens <- st_transform(bbox_athens, crs = st_crs(world))
 
 med <- st_intersection(world, bbox_med)
+athens <- st_intersection(world, bbox_athens)
 
 pottery_sf <- st_transform(pottery_sf, crs = st_crs(med))
+
+# Sorting `pottery_sf` by average age, in an attempt to get the tm_dots to appear with oldest observations on top
+pottery_sf <- pottery_sf %>% arrange(avg_age)
+```
+
+```{r}
+map_athens <- tm_shape(athens) +
+  tm_polygons(col = 'wheat3',
+              border.col = 'grey30',
+              lwd = 0.8,
+              alpha = 0.5) +
+  tm_shape(pottery_sf) +
+  tm_dots(col = "technique", 
+          size = 0.09, 
+          palette = custom_colors,
+          title = "Decoration Technique ") +
+  tm_layout(
+   # outer.margins = c(0.2,0.2,0.2,0.2),
+    bg.color = 'bisque1',
+   # outer.bg.color = 'bisque1',
+    frame = TRUE,
+    frame.double.line = TRUE,
+    legend.show = FALSE)
+
+tmap_save(map_athens,
+          filename = here::here("outputs", "map_athens.png"),
+          height = 2,
+          width = 2,
+          dpi = 900)
+
+map_athens
 ```
 
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
-# Sorting `pottery_sf` by average age, in an attempt to get the tm_dots to appear with oldest observations on top
-pottery_sf <- pottery_sf %>% arrange(avg_age)
-
 # Creating map, points colored by technique with custom colors
-tm_shape(med) +
+map <- tm_shape(med) +
   tm_polygons(col = 'wheat3',
               border.col = 'grey30',
               lwd = 0.2,
               alpha = 0.5) +
   tm_shape(pottery_sf) +
   tm_dots(col = "technique", 
-          size = .5, 
-          palette = custom_colors) +
+          size = 0.03, 
+          palette = custom_colors,
+          title = "Decoration Technique ") +
   tm_layout(
+    main.title = "Distribution of Athenian Pottery by Decoration Technique",
+    main.title.position = "center",
+    main.title.fontfamily = 'lora',
+    main.title.fontface = 'italic',
+    main.title.size = 0.7,
     outer.margins = c(0,0,0,0),
-    bg.color = 'bisque1'
-  ) 
+    bg.color = 'bisque1',
+    outer.bg.color = 'bisque1',
+    frame = TRUE,
+    frame.double.line = TRUE,
+    legend.title.fontfamily = 'lora',
+    legend.text.fontfamily = 'lora',
+    legend.frame = TRUE,
+    legend.title.size = 0.5,
+    legend.text.size = 0.3,
+    legend.position = c(0.85, 0.84))
+
+map
 ```
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+tmap_save(map,
+          filename = here::here("outputs", "map.png"),
+          height = 4,
+          width = 6,
+          dpi = 900)
+```
+
+
+## My attempts to render the plot entirely in R...
+
+```{r}
+# map_img <- readPNG(here::here("outputs", "map.png"))
+# 
+# map_grob <- rasterGrob(map_img, width = unit(1, "npc"), height = unit(1, "npc"))
+# 
+# map_plot <- ggplot() +
+#   annotation_custom(map_grob, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+#   theme_void()
+```
+
+
+```{r}
+# plots <- plot1 / plot2 + plot_layout(ncol = 1)
+# 
+# plots
+```
+
+
+```{r}
+# plot_base <- ggplot() +
+#   labs(
+#     title = "Title",
+#     subtitle = "Subtitle") +
+#   theme_void() +
+#   theme(plot.background = element_rect(fill = 'bisque1'),
+#         plot.title = element_text(size = 20,
+#                                   face = "bold",
+#                                   hjust = 0.5,
+#                                   family = 'lora'),
+#         plot.subtitle = element_text(size = 8,
+#                                      family = 'lora',
+#                                      hjust = 0.5)
+#   )
+# 
+# plot_base
+```
+
+
+```{r}
+# plot_final <- plot_base +
+# 
+#   inset_element(plots, left = 0, right = 1, top = 0.5, bottom = 0.1) +
+#   inset_element(map_plot, left = 0.2, right = 0.8, top = 1, bottom = 0.4) +
+#   
+#   plot_annotation(
+#     theme = theme(
+#       plot.background = element_rect(fill = 'bisque1',
+#                                      color = 'bisque1')
+#     )
+#   ) 
+# 
+# ggsave(plot = plot_final, 
+#        filename = here::here("outputs", "plot_final.png"), 
+#        height = 8, 
+#        width = 10)
+
+```
+
+```{r}
+# plot_final
+```
+
 
 
 ### 1. Which option do you plan to pursue? It’s okay if this has changed since HW #1.
@@ -417,15 +601,23 @@ There are three main variables I'll be examining: decoration technique (`techniq
 I have made two timelines, the first showing the prevalence of each decoration technique over time, the second showing the most common shape and technique for each century (8th to 1st century BCE). 
 The third visualization is a map of each observation's location, colored by technique. It's clear to see that earlier techniques (geometric, silhouette) originated around Athens, and then later techniques spread (red figure).
 
-### at least two data visualizations that I could borrow / adapt pieces from: 
 
-!['Pottery Types and Designs, inspiration for the icons'](images/pottery_designs.png){fig-alt = 'Inspiration for the icons'}
+### 4. at least two data visualizations that I could borrow / adapt pieces from: 
 
-!['Timeline Inspiration'](images/timeline_example.jpg){fig-alt = 'Timeline Inspiration'}
+Charts like this were my inspiration to make the custom icons
 
-### Hand-drawn anticipated visualization:
+!['Pottery Types and Designs, inspiration for the icons'](images/pottery_designs.png){fig-alt='Inspiration for the icons'}
 
-!['Hand-Drawn Mockup'](images/IMG_1670.jpeg){fig-alt = 'Hand Drawn Mockup'}
+
+I had seen charts like this in textbooks in college, and so I wanted to model my timeline bar plot like this, displaying all the techniques over time.
+
+!['Timeline Inspiration'](images/timeline_example.jpg){fig-alt='Timeline Inspiration'}
+
+
+### 5. Hand-drawn anticipated visualization:
+
+!['Hand-Drawn Mockup'](images/IMG_1670.jpeg){fig-alt='Hand Drawn Mockup'}
+
 ### 6. Mock up all of your hand drawn visualizations using code
 
 The three rendered visualizations in the code above are my mockups. Still need some adjustments and to be assembled into one plot!
@@ -435,9 +627,9 @@ The three rendered visualizations in the code above are my mockups. Still need s
 a. What challenges did you encounter or anticipate encountering as you continue to build / iterate on your visualizations in R? If you struggled with mocking up any of your three visualizations (from #6, above), describe those challenges here.
 
 Well! I had a lot of issues placing the custom icons in the timeline plot. I also had to multiply the x axis by two and fix the x breaks in order to get the spacing I need for the geom_text annotations to not overlap, although this still isn't perfect. 
-Ultimately I plan to stack the two timelines on top of one another, where the colored technique bars timeline plot is on top of the centuries timeline plot with the icons, so that the x axes are aligned. 
+Ultimately I plan to stack the two timelines on top of one another, where the colored technique bars timeline plot is on top of the centuries timeline plot with the icons, so that the x axes are aligned. Still need to add annotations for Archaic/Classical/Hellenistic Greek eras. 
 The map is also giving some issues, I wanted to maintain the custom colors from the technique bars timeline in the map, but there are so many points it's hard to tell what is what. I'll have to play with the colors more I think. And fix the legend. 
-Still need to add annotations for Archaic/Classical/Hellenistic GreeK eras. 
+
 
 b. What ggplot extension tools / packages do you need to use to build your visualizations? Are there any that we haven’t covered in class that you’ll be learning how to use for your visualizations?
 
@@ -447,7 +639,7 @@ I don't think any of these were covered in class. I had fun finding new packages
 
 c. What feedback do you need from the instructional team and / or your peers to ensure that your intended message is clear?
 
-Honestly, not sure. My question doesn't have a definitive answer, at least not one that can be answered in a single infographic (a whole book maybe). I realize that my dataset choice may not have been the best for this assignment, if we require a clear message. This will make a nice infographic though. 
+Honestly, not sure. My question doesn't have a definitive answer, at least not one that can be answered in a single infographic (a whole book maybe). This will make a nice infographic though. 
 
 
 
